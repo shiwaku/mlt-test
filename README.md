@@ -26,6 +26,7 @@ mlt-test/
 ├── maplibre-tile-spec/           # エンコーダリポジトリ（gitignore・要clone）
 └── docs/                         # GitHub Pages配信ディレクトリ
     ├── index.html                # MVT vs MLT 比較ページ（3D建物表示）
+    ├── pale.json                 # 背景地図スタイル（地理院最適化ベクトルタイル・淡色）
     ├── stats.json                # タイルサイズ統計（事前計算済み）
     ├── mvt/                      # MVTタイル ZL14-16（58タイル）
     │   └── {z}/{x}/{y}.pbf
@@ -132,7 +133,7 @@ python3 server.py
 
 ブラウザで `http://localhost:8765/index.html` を開く（WSL2の場合は`http://<WSL2-IP>:8765/`）。
 
-MapLibre GL JS v5（`"encoding": "mlt"` 対応）でMLTタイルを読み込み、建物3D・道路・軌道を表示する。
+MapLibre GL JS v5（`"encoding": "mlt"` 対応）でMLTタイルを読み込み、建物3D・道路・軌道を表示する。背景地図は地理院最適化ベクトルタイル（淡色、`pale.json`）を使用。
 
 ## 検証結果メモ
 
