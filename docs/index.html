@@ -6,6 +6,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@5/dist/maplibre-gl.css">
   <script src="https://unpkg.com/maplibre-gl@5/dist/maplibre-gl.js"></script>
+  <script src="https://unpkg.com/@maplibre/maplibre-gl-pmtiles/dist/maplibre-gl-pmtiles.umd.min.js"></script>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
     body { font-family: 'Segoe UI', sans-serif; display: flex; flex-direction: column; height: 100vh; overflow: hidden; background: #1a1a2e; color: #eee; }
@@ -194,6 +195,10 @@ const CENTER = [139.809265, 38.732660];
 const ZOOM   = 15;
 const BOUNDS = [139.790039, 38.719805, 139.828491, 38.745515];
 const BASE   = new URL(".", document.baseURI).href.replace(/\/$/, "");
+
+// PMTilesプロトコル登録
+const pmtilesProtocol = new MaplibreGLPMTiles.Protocol();
+maplibregl.addProtocol("pmtiles", pmtilesProtocol.tile.bind(pmtilesProtocol));
 
 // -------------------------------------------------------
 // マップ生成（pale.jsonをベーススタイルとして使用）
