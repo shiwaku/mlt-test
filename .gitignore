@@ -1,0 +1,17 @@
+# SHPファイル（バイナリ・大容量のため除外）
+input/**/*.shp
+input/**/*.dbf
+input/**/*.prj
+input/**/*.shx
+input/**/*.sbn
+input/**/*.sbx
+input/**/*.cpg
+input/**/*.CPG
+input/**/*.qmd
+
+# エンコーダビルド成果物（git clone後に./gradlew cliで再生成）
+maplibre-tile-spec/
+
+# ログ・一時ファイル
+*.log
+__pycache__/

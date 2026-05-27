@@ -1,0 +1,427 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <title>MVT vs MLT 比較 - 3次元地図データ</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@5/dist/maplibre-gl.css">
+  <script src="https://unpkg.com/maplibre-gl@5/dist/maplibre-gl.js"></script>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: 'Segoe UI', sans-serif; display: flex; flex-direction: column; height: 100vh; overflow: hidden; background: #1a1a2e; color: #eee; }
+
+    /* ヘッダー */
+    #header {
+      background: #16213e; border-bottom: 1px solid #0f3460;
+      padding: 6px 16px; display: flex; align-items: center; gap: 16px; flex-shrink: 0;
+    }
+    #header h1 { font-size: 13px; font-weight: bold; color: #e0e0e0; white-space: nowrap; }
+    .layer-toggles { display: flex; gap: 12px; }
+    .layer-toggles label { cursor: pointer; font-size: 12px; display: flex; align-items: center; gap: 4px; }
+
+    /* メインエリア */
+    #main { display: flex; flex: 1; min-height: 0; }
+
+    /* 地図エリア */
+    #maps { flex: 1; display: flex; min-width: 0; }
+    .map-wrap { flex: 1; position: relative; min-width: 0; }
+    .map-wrap + .map-wrap { border-left: 2px solid #0f3460; }
+    .map-el { width: 100%; height: 100%; }
+
+    .map-badge {
+      position: absolute; top: 8px; left: 50%; transform: translateX(-50%);
+      padding: 3px 14px; border-radius: 12px; font-size: 12px; font-weight: bold;
+      z-index: 1; pointer-events: none; white-space: nowrap;
+    }
+    .badge-mvt { background: #0f3460; color: #7ec8e3; border: 1px solid #7ec8e3; }
+    .badge-mlt { background: #1b4332; color: #74c69d; border: 1px solid #74c69d; }
+
+    /* サイドパネル */
+    #sidebar {
+      width: 280px; flex-shrink: 0; background: #16213e;
+      border-left: 1px solid #0f3460; overflow-y: auto;
+      display: flex; flex-direction: column; gap: 0;
+    }
+    .panel { padding: 12px 14px; border-bottom: 1px solid #0f3460; }
+    .panel-title { font-size: 11px; font-weight: bold; color: #7ec8e3; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px; }
+
+    /* サマリー数値 */
+    .metric-row { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 5px; }
+    .metric-label { font-size: 11px; color: #aaa; }
+    .metric-vals { display: flex; gap: 8px; align-items: baseline; }
+    .val-mvt { font-size: 12px; color: #7ec8e3; font-weight: bold; }
+    .val-mlt { font-size: 12px; color: #74c69d; font-weight: bold; }
+    .val-ratio { font-size: 11px; color: #f4a261; font-weight: bold; }
+
+    /* 比較バー */
+    .bar-group { margin-bottom: 6px; }
+    .bar-label { font-size: 11px; color: #aaa; margin-bottom: 3px; display: flex; justify-content: space-between; }
+    .bar-track { height: 8px; background: #0f3460; border-radius: 4px; overflow: hidden; }
+    .bar-fill { height: 100%; border-radius: 4px; transition: width 0.5s; }
+    .bar-mvt .bar-fill { background: #7ec8e3; }
+    .bar-mlt .bar-fill { background: #74c69d; }
+
+    /* ズーム別テーブル */
+    .zoom-table { width: 100%; border-collapse: collapse; font-size: 11px; }
+    .zoom-table th { color: #7ec8e3; text-align: left; padding: 2px 4px; border-bottom: 1px solid #0f3460; }
+    .zoom-table td { padding: 3px 4px; color: #ccc; }
+    .zoom-table td.val { text-align: right; }
+    .zoom-table td.green { color: #74c69d; }
+    .zoom-table td.orange { color: #f4a261; }
+    .zoom-table tr:hover td { background: #1a2a4a; }
+
+    /* 描画時間 */
+    .render-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+    .render-card { background: #0f3460; border-radius: 6px; padding: 8px; text-align: center; }
+    .render-card .fmt { font-size: 10px; color: #aaa; }
+    .render-card .time { font-size: 18px; font-weight: bold; margin: 2px 0; }
+    .render-card .time-mvt { color: #7ec8e3; }
+    .render-card .time-mlt { color: #74c69d; }
+    .render-card .unit { font-size: 10px; color: #aaa; }
+    #render-winner { font-size: 11px; color: #f4a261; text-align: center; margin-top: 6px; min-height: 16px; }
+
+    /* タイル散布図 */
+    #scatter { display: block; }
+
+    .note { font-size: 10px; color: #666; margin-top: 6px; line-height: 1.5; }
+  </style>
+</head>
+<body>
+
+<div id="header">
+  <h1>MVT vs MLT 比較 — 3次元地図 513351（広島県西部）</h1>
+  <div class="layer-toggles">
+    <label><input type="checkbox" class="layer-chk" data-layers="bldg-fill,bldg-outline" checked> 建物</label>
+    <label><input type="checkbox" class="layer-chk" data-layers="road-line" checked> 道路中心線</label>
+    <label><input type="checkbox" class="layer-chk" data-layers="rail-line" checked> 軌道の中心線</label>
+  </div>
+</div>
+
+<div id="main">
+  <div id="maps">
+    <div class="map-wrap">
+      <div id="map-mvt" class="map-el"></div>
+      <div class="map-badge badge-mvt">MVT（Mapbox Vector Tiles）</div>
+    </div>
+    <div class="map-wrap">
+      <div id="map-mlt" class="map-el"></div>
+      <div class="map-badge badge-mlt">MLT（MapLibre Tiles）</div>
+    </div>
+  </div>
+
+  <div id="sidebar">
+
+    <!-- ファイルサイズサマリー -->
+    <div class="panel">
+      <div class="panel-title">ファイルサイズ比較</div>
+      <div class="metric-row">
+        <span class="metric-label">合計サイズ</span>
+        <div class="metric-vals">
+          <span class="val-mvt" id="s-total-mvt">-</span>
+          <span class="val-mlt" id="s-total-mlt">-</span>
+          <span class="val-ratio" id="s-total-ratio">-</span>
+        </div>
+      </div>
+      <div class="metric-row">
+        <span class="metric-label">平均タイルサイズ</span>
+        <div class="metric-vals">
+          <span class="val-mvt" id="s-avg-mvt">-</span>
+          <span class="val-mlt" id="s-avg-mlt">-</span>
+          <span class="val-ratio" id="s-avg-ratio">-</span>
+        </div>
+      </div>
+      <div class="metric-row">
+        <span class="metric-label">最大タイルサイズ</span>
+        <div class="metric-vals">
+          <span class="val-mvt" id="s-max-mvt">-</span>
+          <span class="val-mlt" id="s-max-mlt">-</span>
+        </div>
+      </div>
+      <div style="margin-top:10px;">
+        <div class="bar-group bar-mvt">
+          <div class="bar-label"><span>MVT</span><span id="bar-mvt-val">-</span></div>
+          <div class="bar-track"><div class="bar-fill" id="bar-mvt" style="width:100%"></div></div>
+        </div>
+        <div class="bar-group bar-mlt" style="margin-top:6px;">
+          <div class="bar-label"><span>MLT</span><span id="bar-mlt-val">-</span></div>
+          <div class="bar-track"><div class="bar-fill" id="bar-mlt" style="width:100%"></div></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ズームレベル別 -->
+    <div class="panel">
+      <div class="panel-title">ズームレベル別サイズ</div>
+      <table class="zoom-table">
+        <thead>
+          <tr><th>ZL</th><th>タイル数</th><th>MVT合計</th><th>MLT合計</th><th>削減率</th></tr>
+        </thead>
+        <tbody id="zoom-tbody"></tbody>
+      </table>
+    </div>
+
+    <!-- 描画速度 -->
+    <div class="panel">
+      <div class="panel-title">描画時間（Idle まで）</div>
+      <div class="render-grid">
+        <div class="render-card">
+          <div class="fmt">MVT</div>
+          <div class="time time-mvt" id="rt-mvt">-</div>
+          <div class="unit">ms</div>
+        </div>
+        <div class="render-card">
+          <div class="fmt">MLT</div>
+          <div class="time time-mlt" id="rt-mlt">-</div>
+          <div class="unit">ms</div>
+        </div>
+      </div>
+      <div id="render-winner"></div>
+      <div class="note">パン・ズーム操作後に再計測。<br>movestart → idle までの時間。</div>
+    </div>
+
+    <!-- タイル散布図 -->
+    <div class="panel">
+      <div class="panel-title">タイル別サイズ分布（全594タイル）</div>
+      <canvas id="scatter" width="252" height="160"></canvas>
+      <div class="note">横軸: MVTサイズ(KB)、縦軸: MLTサイズ(KB)<br>点線より下=MLTが小さい</div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+const CENTER = [133.1818, 34.4613];
+const ZOOM   = 14;
+const BOUNDS = [133.1213, 34.4160, 133.2532, 34.5020];
+const BASE   = ".";
+
+// -------------------------------------------------------
+// スタイル生成
+// -------------------------------------------------------
+function makeStyle(srcId, tiles, encoding) {
+  const src = { type: "vector", tiles, minzoom: 14, maxzoom: 16, bounds: BOUNDS };
+  if (encoding) { src.format = "pbf"; src.encoding = encoding; }
+  return {
+    version: 8,
+    sources: {
+      osm: { type: "raster", tiles: ["https://tile.openstreetmap.org/{z}/{x}/{y}.png"], tileSize: 256, attribution: "© OpenStreetMap contributors" },
+      [srcId]: src
+    },
+    layers: [
+      { id: "osm",          type: "raster", source: "osm",   paint: { "raster-opacity": 0.4 } },
+      { id: "bldg-fill",    type: "fill",   source: srcId,   "source-layer": "bldg",
+        layout: { visibility: "visible" },
+        paint: { "fill-color": "#f59e0b", "fill-opacity": 0.55 } },
+      { id: "bldg-outline", type: "line",   source: srcId,   "source-layer": "bldg",
+        layout: { visibility: "visible" },
+        paint: { "line-color": "#b45309", "line-width": 0.8 } },
+      { id: "road-line",    type: "line",   source: srcId,   "source-layer": "road",
+        layout: { visibility: "visible" },
+        paint: { "line-color": "#3b82f6", "line-width": 1.5 } },
+      { id: "rail-line",    type: "line",   source: srcId,   "source-layer": "rail",
+        layout: { visibility: "visible" },
+        paint: { "line-color": "#a855f7", "line-width": 2.5 } },
+    ]
+  };
+}
+
+// -------------------------------------------------------
+// マップ生成
+// -------------------------------------------------------
+const mapMVT = new maplibregl.Map({ container: "map-mvt", style: makeStyle("mvt", [`${BASE}/mvt/{z}/{x}/{y}.pbf`], null),  center: CENTER, zoom: ZOOM });
+const mapMLT = new maplibregl.Map({ container: "map-mlt", style: makeStyle("mlt", [`${BASE}/mlt/{z}/{x}/{y}.mlt`], "mlt"), center: CENTER, zoom: ZOOM });
+mapMVT.addControl(new maplibregl.NavigationControl(), "top-right");
+mapMLT.addControl(new maplibregl.NavigationControl(), "top-right");
+
+// 同期スクロール
+let syncing = false;
+function sync(src, dst) {
+  src.on("move", () => {
+    if (syncing) return;
+    syncing = true;
+    dst.jumpTo({ center: src.getCenter(), zoom: src.getZoom(), bearing: src.getBearing(), pitch: src.getPitch() });
+    syncing = false;
+  });
+}
+sync(mapMVT, mapMLT);
+sync(mapMLT, mapMVT);
+
+// レイヤートグル（両マップのload完了後に設定）
+let loadedCount = 0;
+function setupToggles() {
+  loadedCount++;
+  if (loadedCount < 2) return;
+  document.querySelectorAll(".layer-chk").forEach(chk => {
+    chk.addEventListener("change", e => {
+      const ids = e.target.dataset.layers.split(",");
+      const vis = e.target.checked ? "visible" : "none";
+      [mapMVT, mapMLT].forEach(m => {
+        ids.forEach(id => {
+          if (m.getLayer(id)) m.setLayoutProperty(id, "visibility", vis);
+        });
+      });
+    });
+  });
+}
+mapMVT.on("load", setupToggles);
+mapMLT.on("load", setupToggles);
+
+// -------------------------------------------------------
+// 描画時間計測
+// -------------------------------------------------------
+const renderTimes = { mvt: [], mlt: [] };
+
+function measureRender(map, key) {
+  let t0 = null;
+  map.on("movestart", () => { t0 = performance.now(); });
+  map.on("idle", () => {
+    if (t0 === null) return;
+    const dt = Math.round(performance.now() - t0);
+    renderTimes[key].push(dt);
+    // 直近5回の中央値を表示
+    const recent = renderTimes[key].slice(-5).sort((a, b) => a - b);
+    const med = recent[Math.floor(recent.length / 2)];
+    document.getElementById(`rt-${key}`).textContent = med;
+    t0 = null;
+    updateWinner();
+  });
+}
+measureRender(mapMVT, "mvt");
+measureRender(mapMLT, "mlt");
+
+function updateWinner() {
+  const v = parseInt(document.getElementById("rt-mvt").textContent);
+  const l = parseInt(document.getElementById("rt-mlt").textContent);
+  const el = document.getElementById("render-winner");
+  if (isNaN(v) || isNaN(l)) { el.textContent = ""; return; }
+  if (l < v) {
+    el.textContent = `▼ MLT が ${v - l}ms 速い`;
+  } else if (v < l) {
+    el.textContent = `▼ MVT が ${l - v}ms 速い`;
+  } else {
+    el.textContent = "同等";
+  }
+}
+
+// -------------------------------------------------------
+// stats.json 読込 → サイドパネル更新
+// -------------------------------------------------------
+function kb(bytes) { return (bytes / 1024).toFixed(0) + " KB"; }
+function kbf(bytes) { return (bytes / 1024).toFixed(1); }
+
+fetch(`${BASE}/stats.json`).then(r => r.json()).then(stats => {
+  const ms = stats.mvt.summary, ls = stats.mlt.summary;
+  const ratio = ls.total_bytes / ms.total_bytes;
+
+  // サマリー
+  document.getElementById("s-total-mvt").textContent   = kb(ms.total_bytes);
+  document.getElementById("s-total-mlt").textContent   = kb(ls.total_bytes);
+  document.getElementById("s-total-ratio").textContent = `▼${((1-ratio)*100).toFixed(1)}%`;
+  document.getElementById("s-avg-mvt").textContent     = ms.avg_bytes + " B";
+  document.getElementById("s-avg-mlt").textContent     = ls.avg_bytes + " B";
+  document.getElementById("s-avg-ratio").textContent   = `${(ls.avg_bytes/ms.avg_bytes*100).toFixed(0)}%`;
+  document.getElementById("s-max-mvt").textContent     = kb(ms.max_bytes);
+  document.getElementById("s-max-mlt").textContent     = kb(ls.max_bytes);
+
+  // バー
+  document.getElementById("bar-mvt-val").textContent = kb(ms.total_bytes);
+  document.getElementById("bar-mlt-val").textContent = kb(ls.total_bytes);
+  document.getElementById("bar-mvt").style.width = "100%";
+  document.getElementById("bar-mlt").style.width = (ratio * 100).toFixed(1) + "%";
+
+  // ズームレベル別
+  const zoomData = {};
+  ["mvt", "mlt"].forEach(fmt => {
+    Object.entries(stats[fmt].tiles).forEach(([key, size]) => {
+      const z = key.split("/")[0];
+      if (!zoomData[z]) zoomData[z] = { mvt: { count:0, bytes:0 }, mlt: { count:0, bytes:0 } };
+      zoomData[z][fmt].count++;
+      zoomData[z][fmt].bytes += size;
+    });
+  });
+  const tbody = document.getElementById("zoom-tbody");
+  Object.keys(zoomData).sort().forEach(z => {
+    const d = zoomData[z];
+    const r = d.mlt.bytes / d.mvt.bytes;
+    const pct = ((1-r)*100).toFixed(1);
+    const cls = r < 1 ? "green" : "orange";
+    const sym = r < 1 ? "▼" : "▲";
+    tbody.innerHTML += `<tr>
+      <td>${z}</td>
+      <td class="val">${d.mvt.count}</td>
+      <td class="val">${kbf(d.mvt.bytes)} KB</td>
+      <td class="val">${kbf(d.mlt.bytes)} KB</td>
+      <td class="val ${cls}">${sym}${pct}%</td>
+    </tr>`;
+  });
+
+  // 散布図
+  drawScatter(stats.mvt.tiles, stats.mlt.tiles);
+});
+
+// -------------------------------------------------------
+// 散布図（Canvas）
+// -------------------------------------------------------
+function drawScatter(mvtTiles, mltTiles) {
+  const canvas = document.getElementById("scatter");
+  const ctx = canvas.getContext("2d");
+  const W = canvas.width, H = canvas.height;
+  const PAD = { l: 32, r: 10, t: 10, b: 24 };
+
+  const keys = Object.keys(mvtTiles).filter(k => mltTiles[k] !== undefined);
+  const mvtKB = keys.map(k => mvtTiles[k] / 1024);
+  const mltKB = keys.map(k => mltTiles[k] / 1024);
+  const maxV  = Math.max(...mvtKB, ...mltKB, 1);
+
+  const sx = x => PAD.l + (x / maxV) * (W - PAD.l - PAD.r);
+  const sy = y => H - PAD.b - (y / maxV) * (H - PAD.t - PAD.b);
+
+  ctx.clearRect(0, 0, W, H);
+  ctx.fillStyle = "#0f3460";
+  ctx.fillRect(0, 0, W, H);
+
+  // グリッド
+  ctx.strokeStyle = "#1e3a5f"; ctx.lineWidth = 1;
+  for (let v = 0; v <= maxV; v += maxV / 4) {
+    const x = sx(v), y = sy(v);
+    ctx.beginPath(); ctx.moveTo(x, H - PAD.b); ctx.lineTo(x, PAD.t); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(PAD.l, y); ctx.lineTo(W - PAD.r, y); ctx.stroke();
+  }
+
+  // 対角線（MVT==MLT）
+  ctx.strokeStyle = "#f4a261"; ctx.lineWidth = 1; ctx.setLineDash([4, 3]);
+  ctx.beginPath(); ctx.moveTo(sx(0), sy(0)); ctx.lineTo(sx(maxV), sy(maxV)); ctx.stroke();
+  ctx.setLineDash([]);
+
+  // 点
+  for (let i = 0; i < keys.length; i++) {
+    const x = sx(mvtKB[i]), y = sy(mltKB[i]);
+    const smaller = mltKB[i] < mvtKB[i];
+    ctx.beginPath(); ctx.arc(x, y, 2, 0, Math.PI * 2);
+    ctx.fillStyle = smaller ? "rgba(116,198,157,0.7)" : "rgba(244,162,97,0.7)";
+    ctx.fill();
+  }
+
+  // 軸ラベル
+  ctx.fillStyle = "#888"; ctx.font = "9px sans-serif";
+  ctx.textAlign = "center";
+  ctx.fillText("0", sx(0), H - 4);
+  ctx.fillText((maxV/2).toFixed(0)+"KB", sx(maxV/2), H - 4);
+  ctx.fillText(maxV.toFixed(0)+"KB", sx(maxV), H - 4);
+  ctx.textAlign = "right";
+  ctx.fillText("0", PAD.l - 4, sy(0) + 3);
+  ctx.fillText((maxV/2).toFixed(0), PAD.l - 4, sy(maxV/2) + 3);
+  ctx.fillText(maxV.toFixed(0), PAD.l - 4, sy(maxV) + 3);
+
+  // 凡例
+  ctx.fillStyle = "rgba(116,198,157,0.8)"; ctx.beginPath(); ctx.arc(PAD.l + 8, PAD.t + 8, 3, 0, Math.PI*2); ctx.fill();
+  ctx.fillStyle = "#888"; ctx.textAlign = "left"; ctx.font = "9px sans-serif";
+  ctx.fillText("MLT小", PAD.l + 14, PAD.t + 11);
+  ctx.fillStyle = "rgba(244,162,97,0.8)"; ctx.beginPath(); ctx.arc(PAD.l + 58, PAD.t + 8, 3, 0, Math.PI*2); ctx.fill();
+  ctx.fillText("MLT大", PAD.l + 64, PAD.t + 11);
+}
+
+[mapMVT, mapMLT].forEach(m => m.on("error", e => console.error(e.error)));
+</script>
+</body>
+</html>
