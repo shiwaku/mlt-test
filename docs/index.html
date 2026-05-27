@@ -196,42 +196,27 @@ const BOUNDS = [139.790039, 38.719805, 139.828491, 38.745515];
 const BASE   = new URL(".", document.baseURI).href.replace(/\/$/, "");
 
 // -------------------------------------------------------
-// スタイル生成
+// マップ生成（pale.jsonをベーススタイルとして使用）
 // -------------------------------------------------------
-function makeStyle(srcId, tiles, encoding) {
-  const src = { type: "vector", tiles, minzoom: 14, maxzoom: 16, bounds: BOUNDS };
+function addDataLayers(map, srcId, tileUrl, encoding) {
+  const src = { type: "vector", tiles: [tileUrl], minzoom: 14, maxzoom: 16, bounds: BOUNDS };
   if (encoding) { src.format = "pbf"; src.encoding = encoding; }
-  return {
-    version: 8,
-    sources: {
-      osm: { type: "raster", tiles: ["https://tile.openstreetmap.org/{z}/{x}/{y}.png"], tileSize: 256, attribution: "© OpenStreetMap contributors" },
-      [srcId]: src
-    },
-    layers: [
-      { id: "osm",          type: "raster", source: "osm",   paint: { "raster-opacity": 0.4 } },
-      { id: "bldg-3d", type: "fill-extrusion", source: srcId, "source-layer": "bldg",
-        layout: { visibility: "visible" },
-        paint: {
-          "fill-extrusion-color": "#f59e0b",
-          "fill-extrusion-opacity": 0.85,
-          "fill-extrusion-height": ["max", 0.1, ["-", ["to-number", ["get", "medElv"]], ["to-number", ["get", "grElv"]]]],
-          "fill-extrusion-base": 0
-        } },
-      { id: "road-line",    type: "line",   source: srcId,   "source-layer": "road",
-        layout: { visibility: "visible" },
-        paint: { "line-color": "#3b82f6", "line-width": 1.5 } },
-      { id: "rail-line",    type: "line",   source: srcId,   "source-layer": "rail",
-        layout: { visibility: "visible" },
-        paint: { "line-color": "#a855f7", "line-width": 2.5 } },
-    ]
-  };
+  map.addSource(srcId, src);
+  map.addLayer({ id: "bldg-3d",   type: "fill-extrusion", source: srcId, "source-layer": "bldg",
+    layout: { visibility: "visible" },
+    paint: { "fill-extrusion-color": "#f59e0b", "fill-extrusion-opacity": 0.85,
+      "fill-extrusion-height": ["max", 0.1, ["-", ["to-number", ["get", "medElv"]], ["to-number", ["get", "grElv"]]]],
+      "fill-extrusion-base": 0 } });
+  map.addLayer({ id: "road-line", type: "line", source: srcId, "source-layer": "road",
+    layout: { visibility: "visible" },
+    paint: { "line-color": "#3b82f6", "line-width": 1.5 } });
+  map.addLayer({ id: "rail-line", type: "line", source: srcId, "source-layer": "rail",
+    layout: { visibility: "visible" },
+    paint: { "line-color": "#a855f7", "line-width": 2.5 } });
 }
 
-// -------------------------------------------------------
-// マップ生成
-// -------------------------------------------------------
-const mapMVT = new maplibregl.Map({ container: "map-mvt", style: makeStyle("mvt", [`${BASE}/mvt/{z}/{x}/{y}.pbf`], null),  center: CENTER, zoom: ZOOM, pitch: 45, bearing: -20 });
-const mapMLT = new maplibregl.Map({ container: "map-mlt", style: makeStyle("mlt", [`${BASE}/mlt/{z}/{x}/{y}.mlt`], "mlt"), center: CENTER, zoom: ZOOM, pitch: 45, bearing: -20 });
+const mapMVT = new maplibregl.Map({ container: "map-mvt", style: `${BASE}/pale.json`, center: CENTER, zoom: ZOOM, pitch: 45, bearing: -20 });
+const mapMLT = new maplibregl.Map({ container: "map-mlt", style: `${BASE}/pale.json`, center: CENTER, zoom: ZOOM, pitch: 45, bearing: -20 });
 mapMVT.addControl(new maplibregl.NavigationControl(), "top-right");
 mapMLT.addControl(new maplibregl.NavigationControl(), "top-right");
 
@@ -248,9 +233,10 @@ function sync(src, dst) {
 sync(mapMVT, mapMLT);
 sync(mapMLT, mapMVT);
 
-// レイヤートグル（両マップのload完了後に設定）
+// レイヤー追加＋トグル設定（両マップのload完了後）
 let loadedCount = 0;
-function setupToggles() {
+function onMapLoad(map, srcId, tileUrl, encoding) {
+  addDataLayers(map, srcId, tileUrl, encoding);
   loadedCount++;
   if (loadedCount < 2) return;
   document.querySelectorAll(".layer-chk").forEach(chk => {
@@ -258,15 +244,13 @@ function setupToggles() {
       const ids = e.target.dataset.layers.split(",");
       const vis = e.target.checked ? "visible" : "none";
       [mapMVT, mapMLT].forEach(m => {
-        ids.forEach(id => {
-          if (m.getLayer(id)) m.setLayoutProperty(id, "visibility", vis);
-        });
+        ids.forEach(id => { if (m.getLayer(id)) m.setLayoutProperty(id, "visibility", vis); });
       });
     });
   });
 }
-mapMVT.on("load", setupToggles);
-mapMLT.on("load", setupToggles);
+mapMVT.on("load", () => onMapLoad(mapMVT, "mvt", `${BASE}/mvt/{z}/{x}/{y}.pbf`, null));
+mapMLT.on("load", () => onMapLoad(mapMLT, "mlt", `${BASE}/mlt/{z}/{x}/{y}.mlt`, "mlt"));
 
 // -------------------------------------------------------
 // 描画時間計測
