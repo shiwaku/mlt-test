@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
   <meta charset="UTF-8">
-  <title>MVT vs MLT 比較 - 3次元地図データ</title>
+  <title>MVT vs MLT 比較 - 3次元地図データ（583906）</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@5/dist/maplibre-gl.css">
   <script src="https://unpkg.com/maplibre-gl@5/dist/maplibre-gl.js"></script>
@@ -89,9 +89,9 @@
 <body>
 
 <div id="header">
-  <h1>MVT vs MLT 比較 — 3次元地図 513351（広島県西部）</h1>
+  <h1>MVT vs MLT 比較 — 3次元地図 583906（山形県北西部）</h1>
   <div class="layer-toggles">
-    <label><input type="checkbox" class="layer-chk" data-layers="bldg-fill,bldg-outline" checked> 建物</label>
+    <label><input type="checkbox" class="layer-chk" data-layers="bldg-3d" checked> 建物</label>
     <label><input type="checkbox" class="layer-chk" data-layers="road-line" checked> 道路中心線</label>
     <label><input type="checkbox" class="layer-chk" data-layers="rail-line" checked> 軌道の中心線</label>
   </div>
@@ -181,7 +181,7 @@
 
     <!-- タイル散布図 -->
     <div class="panel">
-      <div class="panel-title">タイル別サイズ分布（全594タイル）</div>
+      <div class="panel-title">タイル別サイズ分布（全58タイル）</div>
       <canvas id="scatter" width="252" height="160"></canvas>
       <div class="note">横軸: MVTサイズ(KB)、縦軸: MLTサイズ(KB)<br>点線より下=MLTが小さい</div>
     </div>
@@ -190,9 +190,9 @@
 </div>
 
 <script>
-const CENTER = [133.1818, 34.4613];
-const ZOOM   = 14;
-const BOUNDS = [133.1213, 34.4160, 133.2532, 34.5020];
+const CENTER = [139.809265, 38.732660];
+const ZOOM   = 15;
+const BOUNDS = [139.790039, 38.719805, 139.828491, 38.745515];
 const BASE   = ".";
 
 // -------------------------------------------------------
@@ -209,12 +209,14 @@ function makeStyle(srcId, tiles, encoding) {
     },
     layers: [
       { id: "osm",          type: "raster", source: "osm",   paint: { "raster-opacity": 0.4 } },
-      { id: "bldg-fill",    type: "fill",   source: srcId,   "source-layer": "bldg",
+      { id: "bldg-3d", type: "fill-extrusion", source: srcId, "source-layer": "bldg",
         layout: { visibility: "visible" },
-        paint: { "fill-color": "#f59e0b", "fill-opacity": 0.55 } },
-      { id: "bldg-outline", type: "line",   source: srcId,   "source-layer": "bldg",
-        layout: { visibility: "visible" },
-        paint: { "line-color": "#b45309", "line-width": 0.8 } },
+        paint: {
+          "fill-extrusion-color": "#f59e0b",
+          "fill-extrusion-opacity": 0.85,
+          "fill-extrusion-height": ["max", 0.1, ["-", ["to-number", ["get", "medElv"]], ["to-number", ["get", "grElv"]]]],
+          "fill-extrusion-base": 0
+        } },
       { id: "road-line",    type: "line",   source: srcId,   "source-layer": "road",
         layout: { visibility: "visible" },
         paint: { "line-color": "#3b82f6", "line-width": 1.5 } },
@@ -228,8 +230,8 @@ function makeStyle(srcId, tiles, encoding) {
 // -------------------------------------------------------
 // マップ生成
 // -------------------------------------------------------
-const mapMVT = new maplibregl.Map({ container: "map-mvt", style: makeStyle("mvt", [`${BASE}/mvt/{z}/{x}/{y}.pbf`], null),  center: CENTER, zoom: ZOOM });
-const mapMLT = new maplibregl.Map({ container: "map-mlt", style: makeStyle("mlt", [`${BASE}/mlt/{z}/{x}/{y}.mlt`], "mlt"), center: CENTER, zoom: ZOOM });
+const mapMVT = new maplibregl.Map({ container: "map-mvt", style: makeStyle("mvt", [`${BASE}/mvt/{z}/{x}/{y}.pbf`], null),  center: CENTER, zoom: ZOOM, pitch: 45, bearing: -20 });
+const mapMLT = new maplibregl.Map({ container: "map-mlt", style: makeStyle("mlt", [`${BASE}/mlt/{z}/{x}/{y}.mlt`], "mlt"), center: CENTER, zoom: ZOOM, pitch: 45, bearing: -20 });
 mapMVT.addControl(new maplibregl.NavigationControl(), "top-right");
 mapMLT.addControl(new maplibregl.NavigationControl(), "top-right");
 

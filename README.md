@@ -10,36 +10,30 @@ mlt-test/
 ├── README.md
 ├── convert.sh                    # 変換パイプライン（SHP→GeoJSON→MVT→MLT）
 ├── server.py                     # ローカル確認用HTTPサーバー（docs/を配信）
-├── input/                        # 入力データ（SHPはgitignore済み）
-│   ├── 建物/
+├── input/
+│   ├── 000276862.pdf             # 3次元地図データ仕様書
+│   ├── GeoJSON/
 │   │   ├── buildings.geojson     # 建物（BldA3d）GeoJSON ※コミット済み
-│   │   ├── DKG-SHP-513351-BldA3d-20231031-0001.shp    ※gitignore
-│   │   ├── DKG-SHP-513351-BldA3d-20231031-0001.dbf    ※gitignore
-│   │   ├── DKG-SHP-513351-BldA3d-20231031-0001.prj    ※gitignore
-│   │   └── DKG-SHP-513351-BldA3d-20231031-0001.shx    ※gitignore
-│   ├── 軌道の中心線/
 │   │   ├── railways.geojson      # 軌道の中心線（RailTrCL3d）GeoJSON ※コミット済み
-│   │   ├── DKG-SHP-513351-RailTrCL3d-20231031-0001.shp  ※gitignore
-│   │   ├── DKG-SHP-513351-RailTrCL3d-20231031-0001.dbf  ※gitignore
-│   │   ├── DKG-SHP-513351-RailTrCL3d-20231031-0001.prj  ※gitignore
-│   │   └── DKG-SHP-513351-RailTrCL3d-20231031-0001.shx  ※gitignore
-│   └── 道路中心線/
-│       ├── roads.geojson         # 道路中心線（RdCL3d）GeoJSON ※コミット済み
-│       ├── DKG-SHP-513351-RdCL3d-20231031-0001.shp    ※gitignore
-│       ├── DKG-SHP-513351-RdCL3d-20231031-0001.dbf    ※gitignore
-│       ├── DKG-SHP-513351-RdCL3d-20231031-0001.prj    ※gitignore
-│       └── DKG-SHP-513351-RdCL3d-20231031-0001.shx    ※gitignore
+│   │   ├── roads.geojson         # 道路中心線（RdCL3d）GeoJSON ※コミット済み
+│   │   ├── bldg.geojson          # tippecanoe用（buildingsのコピー＋標高正規化）
+│   │   ├── rail.geojson          # tippecanoe用（railwaysのコピー）
+│   │   └── road.geojson          # tippecanoe用（roadsのコピー）
+│   └── SHP/583906/
+│       ├── BldA3d/               # 建物ポリゴン（BldA3d）SHP ※gitignore
+│       ├── RailTrCL3d/           # 軌道の中心線（RailTrCL3d）SHP ※gitignore
+│       └── RdCL3d/               # 道路中心線（RdCL3d）SHP ※gitignore
 ├── maplibre-tile-spec/           # エンコーダリポジトリ（gitignore・要clone）
 └── docs/                         # GitHub Pages配信ディレクトリ
-    ├── index.html                # MVT vs MLT 比較ページ
+    ├── index.html                # MVT vs MLT 比較ページ（3D建物表示）
     ├── stats.json                # タイルサイズ統計（事前計算済み）
-    ├── mvt/                      # MVTタイル ZL14-16（594タイル）
+    ├── mvt/                      # MVTタイル ZL14-16（58タイル）
     │   └── {z}/{x}/{y}.pbf
-    └── mlt/                      # MLTタイル ZL14-16（594タイル）
+    └── mlt/                      # MLTタイル ZL14-16（58タイル）
         └── {z}/{x}/{y}.mlt
 ```
 
-> **データ概要**：国土地理院 3次元地図データ（地図情報レベル2500）メッシュコード 513351（広島県西部）、取得日 2023-10-31
+> **データ概要**：国土地理院 3次元地図データ（地図情報レベル2500）メッシュコード 583906（山形県鶴岡市付近）、取得日 2026-03-17
 
 ## 前提条件
 
@@ -48,7 +42,7 @@ mlt-test/
 | Java | 21以上 | MLTエンコーダ実行 |
 | tippecanoe | 2.x | GeoJSON → MVT変換 |
 | ogr2ogr (GDAL) | 3.x | SHP → GeoJSON変換 |
-| Python | 3.x | ローカルサーバー |
+| Python | 3.x | 標高正規化・ローカルサーバー |
 
 ### Ubuntu / WSL2でのインストール
 
@@ -83,10 +77,22 @@ bash convert.sh
 #### Step 1: SHP → GeoJSON
 
 ```bash
-ogr2ogr -f GeoJSON -t_srs EPSG:4326 input/建物/buildings.geojson input/建物/*.shp
-ogr2ogr -f GeoJSON -t_srs EPSG:4326 input/軌道の中心線/railways.geojson input/軌道の中心線/*.shp
-# 道路中心線は roads.geojson として配置済み
+ogr2ogr -f GeoJSON -t_srs EPSG:4326 input/GeoJSON/buildings.geojson input/SHP/583906/BldA3d/*.shp
+ogr2ogr -f GeoJSON -t_srs EPSG:4326 input/GeoJSON/railways.geojson  input/SHP/583906/RailTrCL3d/*.shp
+ogr2ogr -f GeoJSON -t_srs EPSG:4326 input/GeoJSON/roads.geojson     input/SHP/583906/RdCL3d/*.shp
 ```
+
+#### Step 1b: tippecanoe用コピー＆標高フィールド正規化
+
+```bash
+cp input/GeoJSON/buildings.geojson input/GeoJSON/bldg.geojson
+cp input/GeoJSON/railways.geojson  input/GeoJSON/rail.geojson
+cp input/GeoJSON/roads.geojson     input/GeoJSON/road.geojson
+```
+
+tippecanoeはファイル名をsource-layer名として使用するため、レイヤー名に合わせてコピー。
+
+整数値の標高フィールド（例: `15.0`）にMLTエンコーダがINT/DOUBLE型混在エラーを起こすため、+0.0001のオフセットで全floatに正規化する（表示誤差 < 1mm）。
 
 #### Step 2: GeoJSON → MVT（tippecanoe）
 
@@ -95,23 +101,24 @@ tippecanoe \
   --no-tile-compression \
   -Z14 -z16 \
   -ad \
-  -e mvt \
-  -l bldg  input/建物/buildings.geojson \
-  -l rail  input/軌道の中心線/railways.geojson \
-  -l road  input/道路中心線/roads.geojson \
+  -e docs/mvt \
+  input/GeoJSON/bldg.geojson \
+  input/GeoJSON/rail.geojson \
+  input/GeoJSON/road.geojson \
   --force
 ```
 
-- `--no-tile-compression`: MLTエンコーダが圧縮PBFを扱えないため必須
+- `--no-tile-compression`: MLTエンコーダが非圧縮PBFを要求するため必須
 - `-ad`: タイルサイズ超過時に地物を間引く（高密度データ対応）
-- レイヤー名: `bldg` / `rail` / `road`
+- **`-l` フラグ不使用**: tippecanoe 2.xの `-l name` はGLOBAL指定（全入力ファイルに適用）のため、ファイル名でsource-layer名を設定する
+- source-layer名: `bldg` / `rail` / `road`（ファイル名から自動設定）
 
 #### Step 3: MVT → MLT（Java encoder）
 
 ```bash
 JAR=maplibre-tile-spec/java/mlt-cli/build/libs/encode.jar
-for pbf in $(find mvt -name "*.pbf"); do
-  dir=$(dirname "mlt/${pbf#mvt/}")
+for pbf in $(find docs/mvt -name "*.pbf"); do
+  dir=$(dirname "docs/mlt/${pbf#docs/mvt/}")
   mkdir -p "$dir"
   java -jar "$JAR" --mvt "$pbf" --dir "$dir" --outlines ALL
 done
@@ -123,56 +130,49 @@ done
 python3 server.py
 ```
 
-ブラウザで `http://localhost:8765/index.html` を開く。
+ブラウザで `http://localhost:8765/index.html` を開く（WSL2の場合は`http://<WSL2-IP>:8765/`）。
 
-MapLibre GL JS v5（`"encoding": "mlt"` 対応）でMLTタイルを読み込み、建物・道路・軌道を表示する。
+MapLibre GL JS v5（`"encoding": "mlt"` 対応）でMLTタイルを読み込み、建物3D・道路・軌道を表示する。
 
 ## 検証結果メモ
 
-### ファイルサイズ比較（テストデータ：地図情報レベル2500、メッシュ513351）
+### ファイルサイズ比較（テストデータ：地図情報レベル2500、メッシュ583906）
 
-データ：3次元地図（建物・道路中心線・軌道の中心線）、ZL14〜16、594タイル
+データ：3次元地図（建物・道路中心線・軌道の中心線）、ZL14〜16、58タイル
 
 #### 全体サマリー
 
 | 指標 | MVT（非圧縮） | MLT | 比率 |
 |---|---:|---:|---|
-| 合計サイズ | 18,849 KB | 10,413 KB | **55.2%（▼44.8%）** |
-| 平均タイルサイズ | 32,494 B | 17,952 B | 55.2% |
-| 最大タイルサイズ | 383,756 B | 206,223 B | 53.7% |
+| 合計サイズ | 4,503 KB | 3,058 KB | **67.9%（▼32.1%）** |
+| 平均タイルサイズ | 79,506 B | 54,000 B | 67.9% |
+| 最大タイルサイズ | 370 KB | 257 KB | 69.5% |
 
 #### ズームレベル別
 
 | ZL | タイル数 | MVT合計 | MLT合計 | 削減率 |
 |---|---:|---:|---:|---|
-| 14 | 35 | 6,547 KB | 3,477 KB | ▼46.9% |
-| 15 | 120 | 7,235 KB | 4,062 KB | ▼43.8% |
-| 16 | 439 | 5,067 KB | 2,874 KB | ▼43.3% |
+| 14 | 4 | ※ | ※ | ※ |
+| 15 | 12 | ※ | ※ | ※ |
+| 16 | 42 | ※ | ※ | ※ |
+
+※ 詳細はdocs/stats.jsonを参照
 
 #### gzip圧縮MVTとの比較
 
 | 形式 | サイズ | MVT非圧縮比 |
 |---|---:|---|
-| MVT（非圧縮） | 18.41 MB | 基準 |
-| **MLT** | **10.17 MB** | **55.2%（▼44.8%）** |
-| MVT（gzip圧縮） | 6.17 MB | 33.5% |
+| MVT（非圧縮） | 4.50 MB | 基準 |
+| **MLT** | **3.06 MB** | **67.9%（▼32.1%）** |
+| MVT（gzip圧縮） | 参考値 | 〜33% |
 
-> **注意**: gzip圧縮済みMVTと比べるとMLTは約1.65倍大きい。MLTエンコーダが非圧縮MVTを入力とする制約上、「非圧縮MVT vs MLT」が唯一成立する比較条件。公称「最大6倍の圧縮率向上」との乖離は、比較条件・データ種別・圧縮設定の違いによるものと考えられる。
-
-#### タイル個別サンプル（ZL16）
-
-| タイル | MVT | MLT | 増減 |
-|---|---:|---:|---|
-| 地物多（例） | 14,763 B | 8,527 B | **▼42%** |
-| 地物中（例） | 3,392 B | 2,632 B | ▼22% |
-| 地物少（例） | 432 B | 636 B | ▲47% |
-
-小タイル（地物数が少ない）はMLTのヘッダーオーバーヘッドで逆に増加する傾向あり。
+> **注意**: gzip圧縮済みMVTと比べるとMLTは大きくなる可能性がある。MLTエンコーダが非圧縮MVTを入力とする制約上、「非圧縮MVT vs MLT」が唯一成立する比較条件。
 
 ### 技術的な注意点
 
 - tippecanoeの `--no-tile-compression` が必須（圧縮PBFはエンコーダがエラー）
-- プロパティの型が地物間で混在する場合、MLTエンコーダがエラーになる（事前確認推奨）
+- **tippecanoe 2.x の `-l name` はGLOBALフラグ**（全ファイルに適用）。複数レイヤーはファイル名でsource-layer名を制御する
+- 整数値の標高フィールドがMVT内でINT/DOUBLE混在 → MLTエンコーダが型エラー。GeoJSON側で+0.0001オフセットを追加して回避
 - Java 21以上が必須（Java 17ではビルド不可）
 
 ## 参考
