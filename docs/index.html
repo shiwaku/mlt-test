@@ -215,8 +215,8 @@ function addDataLayers(map, srcId, tileUrl, encoding) {
     paint: { "line-color": "#a855f7", "line-width": 2.5 } });
 }
 
-const mapMVT = new maplibregl.Map({ container: "map-mvt", style: `${BASE}/pale.json`, center: CENTER, zoom: ZOOM, pitch: 45, bearing: -20 });
-const mapMLT = new maplibregl.Map({ container: "map-mlt", style: `${BASE}/pale.json`, center: CENTER, zoom: ZOOM, pitch: 45, bearing: -20 });
+const mapMVT = new maplibregl.Map({ container: "map-mvt", style: `${BASE}/pale.json`, center: CENTER, zoom: ZOOM, pitch: 45, bearing: -20, maxPitch: 85 });
+const mapMLT = new maplibregl.Map({ container: "map-mlt", style: `${BASE}/pale.json`, center: CENTER, zoom: ZOOM, pitch: 45, bearing: -20, maxPitch: 85 });
 mapMVT.addControl(new maplibregl.NavigationControl(), "top-right");
 mapMLT.addControl(new maplibregl.NavigationControl(), "top-right");
 
