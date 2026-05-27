@@ -193,7 +193,7 @@
 const CENTER = [139.809265, 38.732660];
 const ZOOM   = 15;
 const BOUNDS = [139.790039, 38.719805, 139.828491, 38.745515];
-const BASE   = ".";
+const BASE   = new URL(".", document.baseURI).href.replace(/\/$/, "");
 
 // -------------------------------------------------------
 // スタイル生成
