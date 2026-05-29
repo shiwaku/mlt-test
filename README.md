@@ -1,4 +1,4 @@
-# MLT（MapLibre Tiles）変換・表示テスト
+# MLT（MapLibre Tile）変換・表示テスト
 
 3次元地図データ（SHP/GeoJSON）をMLT形式に変換し、MapLibre GL JS v5で表示する検証環境。
 
@@ -180,5 +180,5 @@ MapLibre GL JS v5（`"encoding": "mlt"` 対応）でMLTタイルを読み込み�
 
 - [MapLibre Tile Spec](https://maplibre.org/maplibre-tile-spec/)
 - [maplibre/maplibre-tile-spec (GitHub)](https://github.com/maplibre/maplibre-tile-spec)
-- [MapLibre Tiles(MLT)を触ってみた - Qiita](https://qiita.com/sleepy__keita/items/32e87b8bf6f5dcfe9fa2)
+- [MapLibre Tile(MLT)を触ってみた - Qiita](https://qiita.com/sleepy__keita/items/32e87b8bf6f5dcfe9fa2)
 - [plateau-lod2-mvtをMLTに変換してmaplibre-gl-jsで表示してみた - Qiita](https://qiita.com/frogcat/items/0287ab9f931a98088b0a)
